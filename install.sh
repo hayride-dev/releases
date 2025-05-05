@@ -33,6 +33,8 @@ morphs:
       model: "Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
 EOF
 
+echo "Downloading Meta-Llama-3.1-8B-Instruct model..."
+
 # Download the Meta-Llama-3.1-8B-Instruct default gguf model
 # https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
 curl --progress-bar --show-error --location --fail \
