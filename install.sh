@@ -35,8 +35,9 @@ EOF
 
 # Download the Meta-Llama-3.1-8B-Instruct default gguf model
 # https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
-curl -L -o "$MODELS_DIR/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" \
-  "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
+curl --progress-bar --show-error --location --fail \
+  "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" \
+  --output "$MODELS_DIR/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
 
 # Setup release url and download functions for binaries
 release_url() {
