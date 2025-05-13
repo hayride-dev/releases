@@ -4,33 +4,46 @@
 HAYRIDE_DIR="$HOME/.hayride"
 BIN_DIR="$HAYRIDE_DIR/bin"
 MODELS_DIR="$HAYRIDE_DIR/ai/models"
-REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride-core"
+HAYRIDE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride"
+CORE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride-core"
 CONFIG_FILE="$HAYRIDE_DIR/config.yaml"
 
 # Create the directories if they don't exist
 mkdir -p "$BIN_DIR"
-mkdir -p "$REGISTRY_DIR"
+mkdir -p "$HAYRIDE_REGISTRY_DIR"
+mkdir -p "$CORE_REGISTRY_DIR"
 mkdir -p "$MODELS_DIR"
 
 # Write default config.yaml content
 cat > "$CONFIG_FILE" <<EOF
 version: 0.0.1
 license: alpha
-logging:
-  enabled: true
-  level: debug
-  file: ""
-morphs:
+core:
   server:
+    bin: "hayride-core:server-cfg@0.0.1"
+    logging:
+      enabled: true
+      level: debug
+      file: "server.wasm.log"
     http:
       address: "http://localhost:8080"
+  cli:
+    bin: "hayride-core:cli@0.0.1"
+    logging:
+      enabled: true
+      level: debug
+      file: "cli.wasm.log"
+features:
   ai:
+    bin: "hayride-core:ai-server-cfg@0.0.1"
+    logging:
+        enabled: true
+        level: debug
+        file: ""
     websocket:
       address: "http://localhost:8081"
     http:
       address: "http://localhost:8082"
-    llm:
-      model: "Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
 EOF
 
 echo "Downloading Meta-Llama-3.1-8B-Instruct model..."
@@ -125,7 +138,28 @@ find "$TMP_DIR/core" -type f -name '*.wasm' | while read -r file; do
     version="${BASH_REMATCH[2]}"
 
     # Create versioned output directory
-    outdir="$REGISTRY_DIR/$version"
+    outdir="$CORE_REGISTRY_DIR/$version"
+    mkdir -p "$outdir"
+
+    # Move file there
+    cp "$file" "$outdir/$base.wasm"
+  else
+    echo "Warning: Could not extract version from $filename" >&2
+  fi
+done
+
+# Add each file in the hayride directory to the registry with their version
+find "$TMP_DIR/hayride" -type f -name '*.wasm' | while read -r file; do
+  # Extract the filename (e.g. server-0.0.1.wasm)
+  filename=$(basename "$file")
+
+  # Extract version using semver pattern
+  if [[ "$filename" =~ ^([a-zA-Z0-9_-]+)-([0-9]+\.[0-9]+\.[0-9]+)\.wasm$ ]]; then
+    base="${BASH_REMATCH[1]}"
+    version="${BASH_REMATCH[2]}"
+
+    # Create versioned output directory
+    outdir="$HAYRIDE_REGISTRY_DIR/$version"
     mkdir -p "$outdir"
 
     # Move file there
