@@ -59,6 +59,10 @@ release_url() {
   echo "https://github.com/hayride-dev/releases/releases"
 }
 
+echo_fexists() {
+  [ -f "$1" ] && echo "$1"
+}
+
 download_release_from_repo() {
   local version="$1"
   local arch="$2"
