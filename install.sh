@@ -35,7 +35,7 @@ core:
       file: "cli.wasm.log"
 features:
   ai:
-    bin: "hayride-core:ai-server-cfg@0.0.1"
+    bin: "hayride:ai-server@0.0.1"
     logging:
         enabled: true
         level: debug
