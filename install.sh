@@ -59,6 +59,14 @@ release_url() {
   echo "https://github.com/hayride-dev/releases/releases"
 }
 
+os_postfix(){
+    if [[ "$1" =~ ^mingw.* ]]; then
+        echo "zip"
+    else
+        echo "tar.xz"
+    fi
+}
+
 echo_fexists() {
   [ -f "$1" ] && echo "$1"
 }
@@ -68,7 +76,7 @@ download_release_from_repo() {
   local arch="$2"
   local os_info="$3"
   local tmpdir="$4"
-  local postfix="tar.xz" # TODO: Support .zip for Windows
+  local postfix=$(os_postfix $os_info)
   local filename="hayride-$version-$arch-$os_info.$postfix"
   local download_file="$tmpdir/$filename"
   local archive_url="$(release_url)/download/$version/$filename"
@@ -80,7 +88,8 @@ download_release_from_repo() {
 download_core() {
   local version="$1"
   local tmpdir="$2"
-  local postfix="tar.xz" # TODO: Support .zip for Windows
+  local os_info="$3"
+  local postfix=$(os_postfix $os_info)
   local filename="hayride-core.$postfix"
   local download_file="$tmpdir/$filename"
   local archive_url="$(release_url)/download/$version/$filename"
@@ -99,8 +108,20 @@ get_latest_release() {
 VERSION=$(get_latest_release)
 echo "Installing Hayride latest release version: $VERSION"
 
+parse_os_info() {
+    local uname_output="$1"
+    if [[ "$uname_output" =~ ^mingw ]]; then
+        echo "mingw"
+    elif [[ "$uname_output" == "darwin" ]]; then
+        echo "macos"
+    else
+        echo "$uname_output"
+    fi
+}
+
 ARCH="$(uname -m)"
-OS_INFO="$(uname -s | tr '[:upper:]' '[:lower:]')"
+OS_INFO="$(parse_os_info "$(uname -s | tr '[:upper:]' '[:lower:]')")"
+
 TMPDIR=$(mktemp -d)
 if [ -z "$ARCH" ]; then
   echo "Error: Unable to determine architecture."
@@ -118,10 +139,14 @@ if [ -z "$DOWNLOAD_FILE" ]; then
 fi
 
 # Extract the downloaded file
-tar -xf "$DOWNLOAD_FILE" -C "$BIN_DIR"
+if [[ $DOWNLOAD_FILE == *.zip ]]; then
+  unzip -qo "$DOWNLOAD_FILE" -d "$BIN_DIR"
+else
+  tar -xf "$DOWNLOAD_FILE" -C "$BIN_DIR"
+fi
 
 # Download the core morphs from the release
-CORE_FILE=$(download_core "$VERSION" "$TMPDIR")
+CORE_FILE=$(download_core "$VERSION" "$TMPDIR" "$OS_INFO")
 if [ -z "$CORE_FILE" ]; then
   echo "Error: Failed to download the core morphs archive."
   exit 1
@@ -129,7 +154,11 @@ fi
 
 # Extract core files to a temp directory
 TMP_DIR=$(mktemp -d)
-tar -xf "$CORE_FILE" -C "$TMP_DIR"
+if [[ $CORE_FILE == *.zip ]]; then
+  unzip -qo "$CORE_FILE" -d "$TMP_DIR"
+else
+  tar -xf "$CORE_FILE" -C "$TMP_DIR"
+fi
 
 # Add each file in the core directory to the registry with their version
 find "$TMP_DIR/core" -type f -name '*.wasm' | while read -r file; do
@@ -185,15 +214,12 @@ build_path_str() {
     cat <<END_FISH_SCRIPT
 
 set -gx HAYRIDE_HOME "$HAYRIDE_DIR"
-
 string match -r ".hayride" "\$PATH" > /dev/null; or set -gx PATH "\$HAYRIDE_HOME/bin" \$PATH
 END_FISH_SCRIPT
   else
     # bash and zsh
     cat <<END_BASH_SCRIPT
-
 export HAYRIDE_HOME="$HAYRIDE_DIR"
-
 export PATH="\$HAYRIDE_HOME/bin:\$PATH"
 END_BASH_SCRIPT
   fi
@@ -245,17 +271,33 @@ detect_profile() {
   esac
 }
 
-detected_profile="$(detect_profile $(basename "/$SHELL") $(uname -s) )"
-path_str="$(build_path_str "$detected_profile")"
-if [ -z "$detected_profile" ]; then
-  echo "Warning: Could not detect profile file. Please add the following to your shell profile manually:"
-  echo "$path_str"
+if [[ "$OS_INFO" == "mingw" ]]; then
+  echo "Attempting to add Hayride to your Windows PATH..."
+  BIN_DIR_WIN=$(cygpath -w "$BIN_DIR")
+  powershell.exe -Command "
+    \$hayrideBin = [System.IO.Path]::GetFullPath('$BIN_DIR_WIN').TrimEnd('\\')
+    \$currentPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    \$pathEntries = \$currentPath.Split(';') | ForEach-Object { \$_.TrimEnd('\\') }
+    if (-not (\$pathEntries -contains \$hayrideBin)) {
+      [Environment]::SetEnvironmentVariable('Path', \$currentPath + ';' + \$hayrideBin, 'User')
+      Write-Output 'Added Hayride to Windows user PATH.'
+    } else {
+      Write-Output 'Hayride bin directory is already in PATH.'
+    }
+  "
 else
-  if ! command grep -qc 'HAYRIDE_HOME' "$detected_profile"; then
-    echo "$path_str" >> "$detected_profile"
-    echo "profile $detected_profile updated with HAYRIDE_HOME and PATH, restart your shell or run 'source $detected_profile' to apply changes"
+  detected_profile="$(detect_profile $(basename "/$SHELL") $(uname -s) )"
+  path_str="$(build_path_str "$detected_profile")"
+  if [ -z "$detected_profile" ]; then
+    echo "Warning: Could not detect profile file. Please add the following to your shell profile manually:"
+    echo "$path_str"
   else
-    echo "profile $detected_profile already contains HAYRIDE_HOME and was not updated"
+    if ! command grep -qc 'HAYRIDE_HOME' "$detected_profile"; then
+      echo "$path_str" >> "$detected_profile"
+      echo "profile $detected_profile updated with HAYRIDE_HOME and PATH, restart your shell or run 'source $detected_profile' to apply changes"
+    else
+      echo "profile $detected_profile already contains HAYRIDE_HOME and was not updated"
+    fi
   fi
 fi
 
