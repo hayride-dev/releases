@@ -46,25 +46,9 @@ features:
       address: "http://localhost:8082"
 EOF
 
-echo "Downloading Meta-Llama-3.1-8B-Instruct model..."
-
-# Download the Meta-Llama-3.1-8B-Instruct default gguf model
-# https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
-curl --progress-bar --show-error --location --fail \
-  "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" \
-  --output "$MODELS_DIR/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
-
 # Setup release url and download functions for binaries
 release_url() {
   echo "https://github.com/hayride-dev/releases/releases"
-}
-
-os_postfix(){
-    if [[ "$1" =~ ^mingw.* ]]; then
-        echo "zip"
-    else
-        echo "tar.xz"
-    fi
 }
 
 echo_fexists() {
@@ -76,7 +60,7 @@ download_release_from_repo() {
   local arch="$2"
   local os_info="$3"
   local tmpdir="$4"
-  local postfix=$(os_postfix $os_info)
+  local postfix="tar.xz"
   local filename="hayride-$version-$arch-$os_info.$postfix"
   local download_file="$tmpdir/$filename"
   local archive_url="$(release_url)/download/$version/$filename"
@@ -88,8 +72,7 @@ download_release_from_repo() {
 download_core() {
   local version="$1"
   local tmpdir="$2"
-  local os_info="$3"
-  local postfix=$(os_postfix $os_info)
+  local postfix="tar.xz"
   local filename="hayride-core.$postfix"
   local download_file="$tmpdir/$filename"
   local archive_url="$(release_url)/download/$version/$filename"
@@ -106,13 +89,11 @@ get_latest_release() {
     sed 's/".*//'
 }
 VERSION=$(get_latest_release)
-echo "Installing Hayride latest release version: $VERSION"
+echo "Hayride latest release version: $VERSION"
 
 parse_os_info() {
     local uname_output="$1"
-    if [[ "$uname_output" =~ ^mingw ]]; then
-        echo "mingw"
-    elif [[ "$uname_output" == "darwin" ]]; then
+    if [[ "$uname_output" == "darwin" ]]; then
         echo "macos"
     else
         echo "$uname_output"
@@ -132,6 +113,16 @@ if [ -z "$OS_INFO" ]; then
   exit 1
 fi
 
+case "$OS_INFO" in
+  macos|darwin)
+    ;;
+  *)
+    echo "Error: Unsupported OS '$OS_INFO'. This installer currently only supports Unix-like systems."
+    echo "Visit https://github.com/hayride-dev/releases/releases to download an installer for your OS."
+    exit 1
+    ;;
+esac
+
 DOWNLOAD_FILE=$(download_release_from_repo "$VERSION" "$ARCH" "$OS_INFO" "$TMPDIR")
 if [ -z "$DOWNLOAD_FILE" ]; then
   echo "Error: Failed to download the release."
@@ -139,14 +130,10 @@ if [ -z "$DOWNLOAD_FILE" ]; then
 fi
 
 # Extract the downloaded file
-if [[ $DOWNLOAD_FILE == *.zip ]]; then
-  unzip -qo "$DOWNLOAD_FILE" -d "$BIN_DIR"
-else
-  tar -xf "$DOWNLOAD_FILE" -C "$BIN_DIR"
-fi
+tar -xf "$DOWNLOAD_FILE" -C "$BIN_DIR"
 
 # Download the core morphs from the release
-CORE_FILE=$(download_core "$VERSION" "$TMPDIR" "$OS_INFO")
+CORE_FILE=$(download_core "$VERSION" "$TMPDIR")
 if [ -z "$CORE_FILE" ]; then
   echo "Error: Failed to download the core morphs archive."
   exit 1
@@ -154,11 +141,7 @@ fi
 
 # Extract core files to a temp directory
 TMP_DIR=$(mktemp -d)
-if [[ $CORE_FILE == *.zip ]]; then
-  unzip -qo "$CORE_FILE" -d "$TMP_DIR"
-else
-  tar -xf "$CORE_FILE" -C "$TMP_DIR"
-fi
+tar -xf "$CORE_FILE" -C "$TMP_DIR"
 
 # Add each file in the core directory to the registry with their version
 find "$TMP_DIR/core" -type f -name '*.wasm' | while read -r file; do
@@ -214,12 +197,15 @@ build_path_str() {
     cat <<END_FISH_SCRIPT
 
 set -gx HAYRIDE_HOME "$HAYRIDE_DIR"
+
 string match -r ".hayride" "\$PATH" > /dev/null; or set -gx PATH "\$HAYRIDE_HOME/bin" \$PATH
 END_FISH_SCRIPT
   else
     # bash and zsh
     cat <<END_BASH_SCRIPT
+
 export HAYRIDE_HOME="$HAYRIDE_DIR"
+
 export PATH="\$HAYRIDE_HOME/bin:\$PATH"
 END_BASH_SCRIPT
   fi
@@ -271,34 +257,25 @@ detect_profile() {
   esac
 }
 
-if [[ "$OS_INFO" == "mingw" ]]; then
-  echo "Attempting to add Hayride to your Windows PATH..."
-  BIN_DIR_WIN=$(cygpath -w "$BIN_DIR")
-  powershell.exe -Command "
-    \$hayrideBin = [System.IO.Path]::GetFullPath('$BIN_DIR_WIN').TrimEnd('\\')
-    \$currentPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    \$pathEntries = \$currentPath.Split(';') | ForEach-Object { \$_.TrimEnd('\\') }
-    if (-not (\$pathEntries -contains \$hayrideBin)) {
-      [Environment]::SetEnvironmentVariable('Path', \$currentPath + ';' + \$hayrideBin, 'User')
-      Write-Output 'Added Hayride to Windows user PATH.'
-    } else {
-      Write-Output 'Hayride bin directory is already in PATH.'
-    }
-  "
+detected_profile="$(detect_profile $(basename "/$SHELL") $(uname -s) )"
+path_str="$(build_path_str "$detected_profile")"
+if [ -z "$detected_profile" ]; then
+  echo "Warning: Could not detect profile file. Please add the following to your shell profile manually:"
+  echo "$path_str"
 else
-  detected_profile="$(detect_profile $(basename "/$SHELL") $(uname -s) )"
-  path_str="$(build_path_str "$detected_profile")"
-  if [ -z "$detected_profile" ]; then
-    echo "Warning: Could not detect profile file. Please add the following to your shell profile manually:"
-    echo "$path_str"
+  if ! command grep -qc 'HAYRIDE_HOME' "$detected_profile"; then
+    echo "$path_str" >> "$detected_profile"
+    echo "profile $detected_profile updated with HAYRIDE_HOME and PATH, restart your shell or run 'source $detected_profile' to apply changes"
   else
-    if ! command grep -qc 'HAYRIDE_HOME' "$detected_profile"; then
-      echo "$path_str" >> "$detected_profile"
-      echo "profile $detected_profile updated with HAYRIDE_HOME and PATH, restart your shell or run 'source $detected_profile' to apply changes"
-    else
-      echo "profile $detected_profile already contains HAYRIDE_HOME and was not updated"
-    fi
+    echo "profile $detected_profile already contains HAYRIDE_HOME and was not updated"
   fi
 fi
+
+echo "Downloading Meta-Llama-3.1-8B-Instruct model..."
+# Download the Meta-Llama-3.1-8B-Instruct default gguf model
+# https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
+curl --progress-bar --show-error --location --fail \
+  "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" \
+  --output "$MODELS_DIR/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
 
 echo "Hayride installation complete!"
