@@ -3,7 +3,6 @@
 # Set the hayride directories
 HAYRIDE_DIR="$HOME/.hayride"
 BIN_DIR="$HAYRIDE_DIR/bin"
-MODELS_DIR="$HAYRIDE_DIR/ai/models"
 HAYRIDE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride"
 CORE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride-core"
 CONFIG_FILE="$HAYRIDE_DIR/config.yaml"
@@ -12,7 +11,6 @@ CONFIG_FILE="$HAYRIDE_DIR/config.yaml"
 mkdir -p "$BIN_DIR"
 mkdir -p "$HAYRIDE_REGISTRY_DIR"
 mkdir -p "$CORE_REGISTRY_DIR"
-mkdir -p "$MODELS_DIR"
 
 # Write default config.yaml content
 cat > "$CONFIG_FILE" <<EOF
@@ -20,13 +18,15 @@ version: 0.0.1
 license: alpha
 core:
   server:
-    bin: "hayride-core:server-cfg@0.0.1"
+    bin: "hayride-core:server@0.0.1"
+    plugs:
+      - hayride-core:cfg@0.0.1
     logging:
       enabled: true
       level: debug
       file: "server.wasm.log"
     http:
-      address: "http://localhost:8080"
+      port: 8080
   cli:
     bin: "hayride-core:cli@0.0.1"
     logging:
@@ -35,15 +35,22 @@ core:
       file: "cli.wasm.log"
 features:
   ai:
-    bin: "hayride:ai-server@0.0.1"
+    enabled: false
+    bin: "hayride-core:ai-server@0.0.1"
+    compose:
+      context: "hayride:inmemory@0.0.1"
+      tools: "hayride:default-tools@0.0.1"
+      model: "hayride:llama31@0.0.1"
+      agents: "hayride:default-agent@0.0.1"
+      store: "hayride-core:cfg@0.0.1"
     logging:
         enabled: true
         level: debug
         file: ""
     websocket:
-      address: "http://localhost:8081"
+        port: 8081
     http:
-      address: "http://localhost:8082"
+        port: 8082
 EOF
 
 # Setup release url and download functions for binaries
@@ -270,12 +277,5 @@ else
     echo "profile $detected_profile already contains HAYRIDE_HOME and was not updated"
   fi
 fi
-
-echo "Downloading Meta-Llama-3.1-8B-Instruct model..."
-# Download the Meta-Llama-3.1-8B-Instruct default gguf model
-# https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/blob/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
-curl --progress-bar --show-error --location --fail \
-  "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" \
-  --output "$MODELS_DIR/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
 
 echo "Hayride installation complete!"
