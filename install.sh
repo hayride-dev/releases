@@ -14,7 +14,7 @@ mkdir -p "$CORE_REGISTRY_DIR"
 
 # Write default config.yaml content
 cat > "$CONFIG_FILE" <<EOF
-version: 0.0.1
+version: v0.0.2-alpha
 license: alpha
 core:
   server:
