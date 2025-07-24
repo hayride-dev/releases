@@ -14,7 +14,7 @@ mkdir -p "$CORE_REGISTRY_DIR"
 
 # Write default config.yaml content
 cat > "$CONFIG_FILE" <<EOF
-version: v0.0.2-alpha
+version: v0.0.3-alpha
 license: alpha
 core:
   server:
@@ -42,6 +42,7 @@ features:
       tools: "hayride:default-tools@0.0.1"
       model: "hayride:llama31@0.0.1"
       agents: "hayride:default-agent@0.0.1"
+      runner: "hayride:default-runner@0.0.1"
       store: "hayride-core:cfg@0.0.1"
     logging:
         enabled: true
