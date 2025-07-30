@@ -3,12 +3,14 @@
 # Set the hayride directories
 HAYRIDE_DIR="$HOME/.hayride"
 BIN_DIR="$HAYRIDE_DIR/bin"
+COMPOSITIONS_DIR="$HAYRIDE_DIR/compositions"
 HAYRIDE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride"
 CORE_REGISTRY_DIR="$HAYRIDE_DIR/registry/morphs/hayride-core"
 CONFIG_FILE="$HAYRIDE_DIR/config.yaml"
 
 # Create the directories if they don't exist
 mkdir -p "$BIN_DIR"
+mkdir -p "$COMPOSITIONS_DIR"
 mkdir -p "$HAYRIDE_REGISTRY_DIR"
 mkdir -p "$CORE_REGISTRY_DIR"
 
@@ -38,12 +40,7 @@ features:
     enabled: false
     bin: "hayride-core:ai-server@0.0.1"
     compose:
-      context: "hayride:inmemory@0.0.1"
-      tools: "hayride:default-tools@0.0.1"
-      model: "hayride:llama31@0.0.1"
-      agents: "hayride:default-agent@0.0.1"
-      runner: "hayride:default-runner@0.0.1"
-      store: "hayride-core:cfg@0.0.1"
+      file: "feature-ai.wac"
     logging:
         enabled: true
         level: debug
@@ -191,6 +188,11 @@ find "$TMP_DIR/hayride" -type f -name '*.wasm' | while read -r file; do
   else
     echo "Warning: Could not extract version from $filename" >&2
   fi
+done
+
+# Add each file in the compositions directory to the compositions directory as is
+find "$TMP_DIR/compositions" -type f -name '*.wac' | while read -r file; do
+  cp "$file" "$COMPOSITIONS_DIR/"
 done
 
 # Clean up
