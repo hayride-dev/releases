@@ -98,11 +98,17 @@ echo "Hayride latest release version: $VERSION"
 
 parse_os_info() {
     local uname_output="$1"
-    if [[ "$uname_output" == "darwin" ]]; then
-        echo "macos"
-    else
-        echo "$uname_output"
-    fi
+    case "$uname_output" in
+        darwin)
+            echo "macos"
+            ;;
+        linux)
+            echo "linux-gnu"
+            ;;
+        *)
+            echo "$uname_output"
+            ;;
+    esac
 }
 
 ARCH="$(uname -m)"
@@ -119,7 +125,7 @@ if [ -z "$OS_INFO" ]; then
 fi
 
 case "$OS_INFO" in
-  macos|darwin)
+  macos|darwin|linux-gnu)
     ;;
   *)
     echo "Error: Unsupported OS '$OS_INFO'. This installer currently only supports Unix-like systems."
